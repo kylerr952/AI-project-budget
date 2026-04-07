@@ -1,0 +1,182 @@
+import React, { useState, useEffect, useMemo } from 'react';
+
+// --- Constants & Styles ---
+const CATEGORIES = ['Housing', 'Groceries', 'Fun & Entertainment', 'Utilities', 'Savings', 'Income'];
+const COLORS = {
+  primary: '#4a7c59', // Sage Green
+  secondary: '#d4af37', // Gold
+  bg: '#f9fbf9',
+  card: '#ffffff',
+  text: '#2d3436',
+  danger: '#e17055'
+};
+
+const NewlywedFinanceHub = () => {
+  // --- Persistence Logic ---
+  // We initialize state by checking localStorage first. 
+  // If nothing is there, we start with empty arrays/defaults.
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem('newlywed_transactions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [netWorthItems, setNetWorthItems] = useState(() => {
+    const saved = localStorage.getItem('newlywed_networth');
+    return saved ? JSON.parse(saved) : [
+      { id: 1, name: 'Savings Account', value: 5000, type: 'asset' },
+      { id: 2, name: 'Student Loan', value: 15000, type: 'liability' }
+    ];
+  });
+
+  // Save to localStorage whenever transactions or networth change
+  useEffect(() => {
+    localStorage.setItem('newlywed_transactions', JSON.stringify(transactions));
+  }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('newlywed_networth', JSON.stringify(netWorthItems));
+  }, [netWorthItems]);
+
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // --- Calculations ---
+  const totals = useMemo(() => {
+    const assets = netWorthItems.filter(i => i.type === 'asset').reduce((acc, curr) => acc + curr.value, 0);
+    const liabilities = netWorthItems.filter(i => i.type === 'liability').reduce((acc, curr) => acc + curr.value, 0);
+    const monthlyIncome = transactions.filter(t => t.category === 'Income').reduce((acc, curr) => acc + curr.amount, 0);
+    const monthlyExpenses = transactions.filter(t => t.category !== 'Income' && t.category !== 'Savings').reduce((acc, curr) => acc + curr.amount, 0);
+    
+    const savingsRate = monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome * 100).toFixed(1) : 0;
+    const burnRate = monthlyIncome > 0 ? ((monthlyExpenses / monthlyIncome) * 100).toFixed(1) : 0;
+
+    return { 
+      netWorth: assets - liabilities, 
+      assets, 
+      liabilities, 
+      savingsRate, 
+      burnRate,
+      monthlyExpenses
+    };
+  }, [netWorthItems, transactions]);
+
+  // --- Handlers ---
+  const addTransaction = (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const newTx = {
+      id: Date.now(),
+      date: new Date().toLocaleDateString(),
+      description: formData.get('description'),
+      amount: parseFloat(formData.get('amount')),
+      category: formData.get('category'),
+      owner: formData.get('owner')
+    };
+    setTransactions([newTx, ...transactions]);
+    e.target.reset();
+  };
+
+  const simulateData = () => {
+    const samples = [
+      { id: Date.now() + 1, date: '2023-10-01', description: 'Rent/Mortgage', amount: 2200, category: 'Housing', owner: 'Joint' },
+      { id: Date.now() + 2, date: '2023-10-02', description: 'Groceries', amount: 150, category: 'Groceries', owner: 'Hers' },
+      { id: Date.now() + 3, date: '2023-10-05', description: 'Paycheck', amount: 5000, category: 'Income', owner: 'His' },
+    ];
+    setTransactions([...samples, ...transactions]);
+  };
+
+  const clearData = () => {
+    if(window.confirm("Are you sure you want to delete all saved data?")) {
+      setTransactions([]);
+      localStorage.removeItem('newlywed_transactions');
+    }
+  };
+
+  return (
+    <div style={{ fontFamily: 'Inter, sans-serif', backgroundColor: COLORS.bg, minHeight: '100vh', paddingBottom: '80px' }}>
+      {/* Header */}
+      <header style={{ padding: '20px', textAlign: 'center', backgroundColor: COLORS.card, borderBottom: `2px solid ${COLORS.primary}22` }}>
+        <h1 style={{ color: COLORS.primary, margin: 0, fontSize: '1.5rem' }}>💍 Newlywed Hub</h1>
+      </header>
+
+      {/* Main Content */}
+      <main style={{ maxWidth: '500px', margin: '0 auto', padding: '20px' }}>
+        {activeTab === 'dashboard' && (
+          <div>
+            <div style={{ background: `linear-gradient(135deg, ${COLORS.primary}, #6b9c78)`, padding: '25px', borderRadius: '20px', color: 'white', marginBottom: '20px', boxShadow: '0 10px 20px rgba(74, 124, 89, 0.2)' }}>
+              <p style={{ opacity: 0.9, margin: 0 }}>Combined Net Worth</p>
+              <h2 style={{ fontSize: '2.5rem', margin: '10px 0' }}>${totals.netWorth.toLocaleString()}</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                <span>Assets: ${totals.assets.toLocaleString()}</span>
+                <span>Liabilities: ${totals.liabilities.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div style={{ background: 'white', padding: '15px', borderRadius: '15px', textAlign: 'center' }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>Savings Rate</p>
+                <h3 style={{ color: COLORS.primary, margin: '5px 0' }}>{totals.savingsRate}%</h3>
+              </div>
+              <div style={{ background: 'white', padding: '15px', borderRadius: '15px', textAlign: 'center' }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#666' }}>Burn Rate</p>
+                <h3 style={{ color: COLORS.danger, margin: '5px 0' }}>{totals.burnRate}%</h3>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '30px', background: 'white', padding: '20px', borderRadius: '20px' }}>
+              <h4 style={{ margin: '0 0 15px 0', color: COLORS.primary }}>AI Coach Tips</h4>
+              <ul style={{ paddingLeft: '20px', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                {totals.savingsRate > 20 ? <li>Great job! You are saving over 20% of your income.</li> : <li>Try to cut back on "Fun" expenses to hit a 20% savings goal.</li>}
+                {totals.monthlyExpenses > 3000 && <li>Your housing and utilities are your biggest chunks. Can you optimize there?</li>}
+                <li>Shared goal: Keep tracking daily for 30 days!</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'transactions' && (
+          <div>
+            <button onClick={simulateData} style={{ width: '100%', padding: '10px', marginBottom: '15px', border: 'none', borderRadius: '10px', backgroundColor: COLORS.secondary, color: 'white', fontWeight: 'bold' }}>
+              🪄 Simulate Sample Data
+            </button>
+            <form onSubmit={addTransaction} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'white', padding: '15px', borderRadius: '15px' }}>
+              <input name="description" placeholder="Description (e.g. Dinner)" required style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd' }} />
+              <input name="amount" type="number" placeholder="Amount ($)" required style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd' }} />
+              <select name="category" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select name="owner" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                <option value="Joint">Joint</option>
+                <option value="His">His</option>
+                <option value="Hers">Hers</option>
+              </select>
+              <button type="submit" style={{ padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: COLORS.primary, color: 'white', fontWeight: 'bold' }}>Add Entry</button>
+            </form>
+
+            <div style={{ marginTop: '20px' }}>
+              {transactions.map(t => (
+                <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', borderBottom: '1px solid #eee', background: 'white', marginBottom: '5px', borderRadius: '10px' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>{t.description}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#888' }}>{t.owner} • {t.category}</div>
+                  </div>
+                  <div style={{ color: t.category === 'Income' ? COLORS.primary : COLORS.text, fontWeight: 'bold' }}>
+                    {t.category === 'Income' ? '+' : '-'}${t.amount}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={clearData} style={{ marginTop: '20px', background: 'none', border: 'none', color: COLORS.danger, fontSize: '0.8rem', cursor: 'pointer' }}>Clear All Data</button>
+          </div>
+        )}
+      </main>
+
+      {/* Bottom Navigation */}
+      <nav style={{ position: 'fixed', bottom: 0, width: '100%', display: 'flex', justifyContent: 'space-around', backgroundColor: 'white', padding: '15px 0', borderTop: '1px solid #eee' }}>
+        <button onClick={() => setActiveTab('dashboard')} style={{ background: 'none', border: 'none', color: activeTab === 'dashboard' ? COLORS.primary : '#ccc', fontWeight: 'bold' }}>📊 Dashboard</button>
+        <button onClick={() => setActiveTab('transactions')} style={{ background: 'none', border: 'none', color: activeTab === 'transactions' ? COLORS.primary : '#ccc', fontWeight: 'bold' }}>💸 Entries</button>
+      </nav>
+    </div>
+  );
+};
+
+export default NewlywedFinanceHub;
